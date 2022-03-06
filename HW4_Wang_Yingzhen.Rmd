@@ -1,0 +1,107 @@
+---
+title: "STAA_566_HW4"
+author: "Yingzhen Wang"
+date: "3/5/2022"
+output: html_document
+knit: (function(input_file, encoding) {
+  out_dir <- 'docs';
+  rmarkdown::render(input_file,
+ encoding=encoding,
+ output_file=file.path(dirname(input_file), out_dir, 'index.html'))})
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## The data comes from the pm observation map of cities in the state of alabama in the United States in 2020.
+
+## Through this table, we can see the difference and ranking of air quality in each city, as well as the number of observation points, and the indicators of the regions ranked according to the degree of air pollution.
+
+## The table makes it possible to search for the city's annual average pm index and three other indicators we want to know, and sort in positive or reverse order according to each indicator.
+
+## The site numbers are rounded, and the others are rounded to two decimal places, and then the city column is fixed on the left side of the table.
+
+
+### Download Data
+```{r}
+year <- 2020
+poll <- 88101
+
+filename <- paste0("daily_",poll,"_",year)
+
+download.file(paste0("https://aqs.epa.gov/aqsweb/airdata/",filename,".zip"), paste0(filename,".zip") )
+
+unzip(paste0(filename,".zip"))
+
+datain <- read.csv(paste0(filename,".csv"))
+
+file.remove(paste0(filename,".zip"))
+file.remove(paste0(filename,".csv"))
+```
+
+
+### Select variables
+```{r}
+library(dplyr)
+datain <- datain %>%
+  select( pm = 'Arithmetic.Mean', X1st_Max_Hour = 'X1st.Max.Hour',
+          X1st_Max_Value = 'X1st.Max.Value', city ='City.Name',
+         date = 'Date.Local',site = 'Site.Num')
+
+```
+
+
+### Add the data for the figure
+```{r}
+pm <- datain %>%
+  group_by(city) %>%
+  summarise(pm = mean(pm),
+            X1st_Max_Hour = mean(X1st_Max_Hour),
+            X1st_Max_Value = mean(X1st_Max_Value),
+            site = mean(site))
+
+library(sparkline)
+sparkline(0)
+
+pm_table <- pm %>% 
+  mutate(plt_pm=NA) %>%
+   as.data.frame()
+
+datain2 <- datain %>% filter(date < '2020-01-30')
+```
+
+
+### Add figure to data.frame
+```{r}
+for(s in pm_table$city){
+  
+    city_pm <- datain2 %>%
+    filter(city==s) %>%
+    arrange(date) %>%
+    pull(pm)
+    pm_table[which(pm_table$city==s),"plt_pm"] <- spk_chr(city_pm)
+  
+}
+```
+
+
+### Create Table
+```{r}
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+tbl <- pm_table %>% 
+  kbl(escape = FALSE,
+    col.names = c("city",
+                    "pm",
+                    "X1st_Max_Hour",
+                    "X1st_Max_Value",
+                    "site",
+                    "plt_pm"
+                    ),
+      align = c("l","r","r","r","r","r"), digits = 1) %>%
+  add_header_above(c(" ", "annual air information" = 5 ))%>%
+  kable_styling(fixed_thead = TRUE) 
+tbl
+```
